@@ -3,6 +3,7 @@
 #include "test/mocks/buffer/mocks.h"
 #include "test/mocks/grpc/mocks.h"
 #include "test/mocks/http/mocks.h"
+#include "test/mocks/tracing/mocks.h"
 #include "test/mocks/upstream/mocks.h"
 #include "test/proto/helloworld.pb.h"
 #include "test/test_common/utility.h"
@@ -211,8 +212,16 @@ public:
     EXPECT_CALL(
         *(request->http_stream_),
         sendData(BufferStringEqual(std::string(HELLO_REQUEST_DATA, HELLO_REQUEST_SIZE)), true));
+
+    NiceMock<Tracing::MockSpan> active_span;
+    NiceMock<Tracing::MockSpan>* child_span{new NiceMock<Tracing::MockSpan>()};
+
+    EXPECT_CALL(active_span, spawnChild_(_, "async test_cluster egress", _))
+        .WillOnce(Return(child_span));
+    EXPECT_CALL(*child_span, injectContext(_));
+
     request->grpc_request_ = grpc_client_->send(*method_descriptor_, request_msg, *request,
-                                                Optional<std::chrono::milliseconds>());
+                                                active_span, Optional<std::chrono::milliseconds>());
     EXPECT_NE(request->grpc_request_, nullptr);
     // The header map should still be valid after grpc_client_->start() returns, since it is
     // retained by the HTTP async client for the deferred send.
@@ -320,8 +329,16 @@ TEST_F(GrpcAsyncClientImplTest, RequestHttpStartFail) {
   ON_CALL(http_client_, start(_, _)).WillByDefault(Return(nullptr));
   EXPECT_CALL(grpc_callbacks, onFailure(Status::GrpcStatus::Unavailable, ""));
   helloworld::HelloRequest request_msg;
+
+  NiceMock<Tracing::MockSpan> active_span;
+  NiceMock<Tracing::MockSpan>* child_span{new NiceMock<Tracing::MockSpan>()};
+  EXPECT_CALL(active_span, spawnChild_(_, "async test_cluster egress", _))
+      .WillOnce(Return(child_span));
+
+  EXPECT_CALL(*child_span, injectContext(_)).Times(0);
+
   auto* grpc_request = grpc_client_->send(*method_descriptor_, request_msg, grpc_callbacks,
-                                          Optional<std::chrono::milliseconds>());
+                                          active_span, Optional<std::chrono::milliseconds>());
   EXPECT_EQ(grpc_request, nullptr);
 }
 
@@ -374,8 +391,15 @@ TEST_F(GrpcAsyncClientImplTest, RequestHttpSendHeadersFail) {
       }));
   EXPECT_CALL(grpc_callbacks, onFailure(Status::GrpcStatus::Internal, ""));
   helloworld::HelloRequest request_msg;
+
+  NiceMock<Tracing::MockSpan> active_span;
+  NiceMock<Tracing::MockSpan>* child_span{new NiceMock<Tracing::MockSpan>()};
+  EXPECT_CALL(active_span, spawnChild_(_, "async test_cluster egress", _))
+      .WillOnce(Return(child_span));
+  EXPECT_CALL(*child_span, injectContext(_));
+
   auto* grpc_request = grpc_client_->send(*method_descriptor_, request_msg, grpc_callbacks,
-                                          Optional<std::chrono::milliseconds>());
+                                          active_span, Optional<std::chrono::milliseconds>());
   EXPECT_EQ(grpc_request, nullptr);
 }
 

@@ -7,7 +7,7 @@
 
 #include "envoy/grpc/async_client.h"
 #include "envoy/ratelimit/ratelimit.h"
-#include "envoy/tracing/context.h"
+#include "envoy/tracing/http_tracer.h"
 #include "envoy/upstream/cluster_manager.h"
 
 #include "common/ratelimit/ratelimit.pb.h"
@@ -39,21 +39,21 @@ public:
   // RateLimit::Client
   void cancel() override;
   void limit(RequestCallbacks& callbacks, const std::string& domain,
-             const std::vector<Descriptor>& descriptors,
-             const Tracing::TransportContext& context) override;
+             const std::vector<Descriptor>& descriptors, Tracing::Span& parent_span) override;
 
   // Grpc::AsyncRequestCallbacks
-  void onCreateInitialMetadata(Http::HeaderMap& metadata) override;
-  void onSuccess(std::unique_ptr<pb::lyft::ratelimit::RateLimitResponse>&& response) override;
-  void onFailure(Grpc::Status::GrpcStatus status, const std::string& message) override;
+  void onCreateInitialMetadata(Http::HeaderMap&) override {}
+  void onSuccess(std::unique_ptr<pb::lyft::ratelimit::RateLimitResponse>&& response,
+                 Tracing::Span& span) override;
+  void onFailure(Grpc::Status::GrpcStatus status, const std::string& message,
+                 Tracing::Span& span) override;
 
 private:
   const Protobuf::MethodDescriptor& service_method_;
-  std::unique_ptr<RateLimitAsyncClient> async_client_;
+  RateLimitAsyncClientPtr async_client_;
   Grpc::AsyncRequest* request_{};
   Optional<std::chrono::milliseconds> timeout_;
   RequestCallbacks* callbacks_{};
-  Tracing::TransportContext context_;
 };
 
 class GrpcFactoryImpl : public ClientFactory {
@@ -74,7 +74,7 @@ public:
   // RateLimit::Client
   void cancel() override {}
   void limit(RequestCallbacks& callbacks, const std::string&, const std::vector<Descriptor>&,
-             const Tracing::TransportContext&) override {
+             Tracing::Span&) override {
     callbacks.complete(LimitStatus::OK);
   }
 };

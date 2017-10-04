@@ -59,9 +59,10 @@ public:
 template <class RequestType, class ResponseType>
 class MockAsyncClient : public AsyncClient<RequestType, ResponseType> {
 public:
-  MOCK_METHOD4_T(send, AsyncRequest*(const Protobuf::MethodDescriptor& service_method,
+  MOCK_METHOD5_T(send, AsyncRequest*(const Protobuf::MethodDescriptor& service_method,
                                      const RequestType& request,
                                      AsyncRequestCallbacks<ResponseType>& callbacks,
+                                     Tracing::Span& parent_span,
                                      const Optional<std::chrono::milliseconds>& timeout));
   MOCK_METHOD2_T(start, AsyncStream<RequestType>*(const Protobuf::MethodDescriptor& service_method,
                                                   AsyncStreamCallbacks<ResponseType>& callbacks));

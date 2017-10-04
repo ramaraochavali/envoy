@@ -5,6 +5,7 @@
 #include "common/buffer/zero_copy_input_stream_impl.h"
 #include "common/common/enum_to_int.h"
 #include "common/common/linked_object.h"
+#include "common/common/utility.h"
 #include "common/grpc/codec.h"
 #include "common/grpc/common.h"
 #include "common/http/async_client_impl.h"
@@ -13,6 +14,18 @@
 
 namespace Envoy {
 namespace Grpc {
+
+class AsyncClientTracingConfig : public Tracing::Config {
+public:
+  Tracing::OperationName operationName() const override { return Tracing::OperationName::Egress; }
+
+  const std::vector<Http::LowerCaseString>& requestHeadersForTags() const override {
+    return request_headers_for_tags_;
+  }
+
+private:
+  const std::vector<Http::LowerCaseString> request_headers_for_tags_;
+};
 
 template <class RequestType, class ResponseType> class AsyncStreamImpl;
 template <class RequestType, class ResponseType> class AsyncRequestImpl;
@@ -31,10 +44,10 @@ public:
 
   // Grpc::AsyncClient
   AsyncRequest* send(const Protobuf::MethodDescriptor& service_method, const RequestType& request,
-                     AsyncRequestCallbacks<ResponseType>& callbacks,
+                     AsyncRequestCallbacks<ResponseType>& callbacks, Tracing::Span& parent_span,
                      const Optional<std::chrono::milliseconds>& timeout) override {
     auto* const async_request = new AsyncRequestImpl<RequestType, ResponseType>(
-        *this, service_method, request, callbacks, timeout);
+        *this, service_method, request, callbacks, parent_span, timeout);
     std::unique_ptr<AsyncStreamImpl<RequestType, ResponseType>> grpc_stream{async_request};
 
     grpc_stream->initialize();
@@ -67,6 +80,7 @@ private:
   const std::string remote_cluster_name_;
   std::list<std::unique_ptr<AsyncStreamImpl<RequestType, ResponseType>>> active_streams_;
 
+  friend class AsyncRequestImpl<RequestType, ResponseType>;
   friend class AsyncStreamImpl<RequestType, ResponseType>;
 };
 
@@ -264,10 +278,17 @@ class AsyncRequestImpl : public AsyncRequest,
 public:
   AsyncRequestImpl(AsyncClientImpl<RequestType, ResponseType>& parent,
                    const Protobuf::MethodDescriptor& service_method, const RequestType& request,
-                   AsyncRequestCallbacks<ResponseType>& callbacks,
+                   AsyncRequestCallbacks<ResponseType>& callbacks, Tracing::Span& parent_span,
                    const Optional<std::chrono::milliseconds>& timeout)
       : AsyncStreamImpl<RequestType, ResponseType>(parent, service_method, *this, timeout),
-        request_(request), callbacks_(callbacks) {}
+        request_(request), callbacks_(callbacks) {
+
+    AsyncClientTracingConfig config; // fixfix can be static
+    current_span_ =                  // fixfix perf
+        parent_span.spawnChild(config, "async " + parent.remote_cluster_name_ + " egress",
+                               ProdSystemTimeSource::instance_.currentTime());
+    current_span_->setTag("upstream_cluster_name", parent.remote_cluster_name_);
+  }
 
   void initialize() override {
     AsyncStreamImpl<RequestType, ResponseType>::initialize();
@@ -278,11 +299,20 @@ public:
   }
 
   // Grpc::AsyncRequest
-  void cancel() override { this->resetStream(); }
+  void cancel() override {
+    // fixfix can we avoid allocation?
+    // Tracing::SpanFinalizerPtr finalizer = finalizer_factory_.create(request_, response_.get());
+    current_span_->setTag("status", "canceled"); // fixfix perf
+    current_span_->setTag("error", "true");
+    current_span_->finishSpan();
+
+    this->resetStream();
+  }
 
 private:
   // Grpc::AsyncStreamCallbacks
   void onCreateInitialMetadata(Http::HeaderMap& metadata) override {
+    current_span_->injectContext(metadata);
     callbacks_.onCreateInitialMetadata(metadata);
   }
 
@@ -295,20 +325,26 @@ private:
   void onReceiveTrailingMetadata(Http::HeaderMapPtr&&) override {}
 
   void onRemoteClose(Grpc::Status::GrpcStatus status, const std::string& message) override {
+    // fixfix Tracing::SpanFinalizerPtr finalizer = finalizer_factory_.create(request_,
+    // response_.get());
+    current_span_->setTag("grpc_status", std::to_string(status)); // fixfix perf
+
     if (status != Grpc::Status::GrpcStatus::Ok) {
-      callbacks_.onFailure(status, message);
-      return;
-    }
-    if (response_ == nullptr) {
-      callbacks_.onFailure(Status::Internal, EMPTY_STRING);
-      return;
+      current_span_->setTag("error", "true");
+      callbacks_.onFailure(status, message, *current_span_);
+    } else if (response_ == nullptr) {
+      current_span_->setTag("error", "true");
+      callbacks_.onFailure(Status::Internal, EMPTY_STRING, *current_span_);
+    } else {
+      callbacks_.onSuccess(std::move(response_), *current_span_);
     }
 
-    callbacks_.onSuccess(std::move(response_));
+    current_span_->finishSpan();
   }
 
   const RequestType& request_;
   AsyncRequestCallbacks<ResponseType>& callbacks_;
+  Tracing::SpanPtr current_span_;
   std::unique_ptr<ResponseType> response_;
 };
 
