@@ -37,9 +37,9 @@ aio-api-nist==0.0.1 \
     # via
     #   -r requirements.in
     #   envoy-dependency-check
-aio-core==0.8.2 \
-    --hash=sha256:3833acebcd4f45a13bfe9e074d98cdc86629b8f58274e360cc887c310f21c312 \
-    --hash=sha256:88701254d5221d3c59a49452969d050e9dd5db043eefaeb82ea0586ad3fd2a8a
+aio-core==0.8.3 \
+    --hash=sha256:64b797bc4fcd4a6448fb039c395057eaaa9fa06ef4132fee761aaf5a136df0c9 \
+    --hash=sha256:fe752a2b40b875d5fd05eb5977cd3c1be3435a05250ff096e1b56cb96a5ca15f
     # via
     #   -r requirements.in
     #   aio-api-github
@@ -836,9 +836,9 @@ tomli==1.2.1 \
     # via
     #   coverage
     #   pytest
-trycast==0.3.0 \
-    --hash=sha256:1b7b4c0d4b0d674770a53f34a762e52a6cd6879eb251ab21625602699920080d \
-    --hash=sha256:687185b812e8d1c45f2ba841e8de7bdcdee0695dcf3464f206800505d4c65f26
+trycast==0.7.3 \
+    --hash=sha256:2ce9a7dcd9fc40356ee23107a2898f5aac166cfec67f082303e36e32c6d4b9de \
+    --hash=sha256:68a55f4644560b6a20dfc3bd970fd668011f0d37bf98f620b1d5d7b8feaaeb44
     # via
     #   aio-core
     #   envoy-base-utils
