@@ -63,6 +63,7 @@ static_resources:
           prefix_routes:
             catch_all_route:
               cluster: cluster_0
+              key_formatter: '%FILTER_STATE(wasm.vegacache.client_id:PLAIN)%:{%KEY%}'
           settings:
             op_timeout: 5s
 )EOF",

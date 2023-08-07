@@ -151,6 +151,7 @@ envoy_cc_library(
         ":router_interface",
         "//envoy/thread_local:thread_local_interface",
         "//envoy/upstream:cluster_manager_interface",
+        "//source/common/stream_info:stream_info_lib",
         "//source/extensions/filters/network/common/redis:codec_lib",
         "//source/extensions/filters/network/common/redis:supported_commands_lib",
         "//source/extensions/filters/network/common/redis:utility_lib",
