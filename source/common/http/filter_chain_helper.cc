@@ -60,7 +60,7 @@ void FilterChainUtility::createFilterChainForFactories(
   }
 }
 
-SINGLETON_MANAGER_REGISTRATION(downstream_filter_config_provider_manager);
+//SINGLETON_MANAGER_REGISTRATION(downstream_filter_config_provider_manager);
 SINGLETON_MANAGER_REGISTRATION(upstream_filter_config_provider_manager);
 
 std::shared_ptr<UpstreamFilterConfigProviderManager>
@@ -73,16 +73,16 @@ FilterChainUtility::createSingletonUpstreamFilterConfigProviderManager(
   return upstream_filter_config_provider_manager;
 }
 
-std::shared_ptr<Http::DownstreamFilterConfigProviderManager>
-FilterChainUtility::createSingletonDownstreamFilterConfigProviderManager(
-    Server::Configuration::ServerFactoryContext& context) {
-  std::shared_ptr<Http::DownstreamFilterConfigProviderManager>
-      downstream_filter_config_provider_manager =
-          context.singletonManager().getTyped<Http::DownstreamFilterConfigProviderManager>(
-              SINGLETON_MANAGER_REGISTERED_NAME(downstream_filter_config_provider_manager),
-              [] { return std::make_shared<Filter::HttpFilterConfigProviderManagerImpl>(); });
-  return downstream_filter_config_provider_manager;
-}
+// std::shared_ptr<Http::DownstreamFilterConfigProviderManager>
+// FilterChainUtility::createSingletonDownstreamFilterConfigProviderManager(
+//     Server::Configuration::ServerFactoryContext& context) {
+//   std::shared_ptr<Http::DownstreamFilterConfigProviderManager>
+//       downstream_filter_config_provider_manager =
+//           context.singletonManager().getTyped<Http::DownstreamFilterConfigProviderManager>(
+//               SINGLETON_MANAGER_REGISTERED_NAME(downstream_filter_config_provider_manager),
+//               [] { return std::make_shared<Filter::HttpFilterConfigProviderManagerImpl>(); });
+//   return downstream_filter_config_provider_manager;
+// }
 
 } // namespace Http
 } // namespace Envoy
